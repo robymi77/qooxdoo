@@ -258,7 +258,7 @@ class Scope(object):
             cld.prrnt(indent=indent+'  ')
 
     def globals(self):
-        return dict([(x,y) for x,y in self.vars.items() if not y.decl])
+        return dict([(x,y) for x,y in self.vars.items() if y.is_global()])
 
     ##
     # Return all nested scopes
@@ -305,6 +305,9 @@ class ScopeVar(object):
             if use not in self.uses:
                 self.uses.append(use)
         return self
+
+    def is_global(self):
+        return bool(self.decl)
 
 
 # - Utilities -----------------------------------------------------------------

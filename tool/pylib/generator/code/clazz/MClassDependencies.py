@@ -419,44 +419,22 @@ class MClassDependencies(object):
 
         # end:_analyzeClassDepsNode
 
-    def _analyzeClassDepsNode_2(self, node, depsList, inLoadContext, inDefer=False):
-        if node.type in ('file', 'function', 'catch'):
-            top_scope = node.scope
-        else:
-            top_scope = scopes.find_enclosing(node)  # get enclosing scope of node
-        for scope in top_scope.scope_iterator(): # walk through this and all nested scopes
-            for global_name, scopeVar in scope.globals().items():  # get the global symbols { sym_name: ScopeVar }
-                for var_node in scopeVar.uses:       # create a depsItem for all its uses
-                    if treeutil.hasAncestor(var_node, node): # var_node is not disconnected through optimization
-                        depsItem = self.qualify_deps_item(var_node, scope.is_load_time, scope.is_defer)
-                        # as this also does filtering
-                        if depsItem:
-                            depsList.append(depsItem)    # and qualify them
-                            #if depsItem.name == "qx.log.appender.Console":
-                            #    import pydb; pydb.debugger()
 
-        # Augment with feature dependencies introduces with qx.core.Environment.get("...") calls
-        for env_operand in variantoptimizer.findVariantNodes(node):
-            call_node = env_operand.parent.parent
-            env_key = call_node.getChild("arguments").children[0].get("value", "")
-            className, classAttribute = self.getClassNameFromEnvKey(env_key)
-            if className:
-                #print className
-                depsItem = DependencyItem(className, classAttribute, self.id, env_operand.get('line', -1))
-                depsItem.isCall = True  # treat as if actual call, to collect recursive deps
-                # .inLoadContext
-                # get 'qx' node of 'qx.core.Environment....'
-                qx_idnode = treeutil.findFirstChainChild(env_operand)
-                scope = qx_idnode.scope
-                inLoadContext = scope.is_load_time # get its scope's .is_load_time
-                depsItem.isLoadDep = inLoadContext
-                if inLoadContext:
-                    depsItem.needsRecursion = True
-                depsList.append(depsItem)
+    # - _analyzeClassDepsNode_2 ------------------------------------------------
+
+    def _analyzeClassDepsNode_2(self, node, depsList, inLoadContext, inDefer=False):
+        # get global vars from tree
+        global_nodes = self.get_node_globals(node)
+        # create DependencyItem()'s for them
+        deps_items = self.depsitems_from_vars(global_nodes)
+        depsList.extend(deps_items)
+        # get class references from qx.core.Environment.* calls
+        deps_items = self.depsitems_from_envcalls(node)
+        depsList.extend(deps_items)
 
         return
 
-    _analyzeClassDepsNode = _analyzeClassDepsNode_1
+    _analyzeClassDepsNode = _analyzeClassDepsNode_2
 
     ##
     # Does all the tests to qualify a DependencyItem (inLoad, needsRecursion, ...).
@@ -510,8 +488,73 @@ class MClassDependencies(object):
         else:
             return None
         
-        
+    ##
+    # Return a list of identifier nodes in <node> which are from the global scope.
+    #
+    # - uses .scope info
+    #
+    def get_node_globals(self, node):
+        global_nodes = []
+        # traverse the <node> tree, looking for identifiers
+        for id_node in treeutil.nodeIterator(node, ['identifier']):
+            if hasattr(id_node, 'scope'): # check identifier's ScopeVariable object
+                try:
+                    is_global = id_node.scope.vars[id_node.get('value')].is_global()
+                except (KeyError, AttributeError):
+                    is_global = False
+                if is_global:
+                    global_nodes.append(id_node)
+        return global_nodes
 
+    def get_node_globals_1(self, node):
+        global_nodes = []
+        if node.type in ('file', 'function', 'catch'):
+            top_scope = node.scope
+        else:
+            top_scope = scopes.find_enclosing(node)  # get enclosing scope of node
+        for scope in top_scope.scope_iterator(): # walk through this and all nested scopes
+            for global_name, scopeVar in scope.globals().items():  # get the global symbols { sym_name: ScopeVar }
+                for id_node in scopeVar.uses:       # create a depsItem for all its uses
+                    if treeutil.hasAncestor(id_node, node): # id_node is not disconnected through optimization
+                        global_nodes.append(id_node)
+        return global_nodes
+
+    def depsitems_from_vars(self, node_list):
+        depsList = []
+        for id_node in node_list:
+            scope = id_node.scope
+            # create and qualify a depsItem from node
+            depsItem = self.qualify_deps_item(id_node, scope.is_load_time, scope.is_defer)
+            if depsItem: # as this also does filtering
+                depsList.append(depsItem)
+        return depsList
+
+    ##
+    # Get feature dependencies introduces with qx.core.Environment.get("...") calls
+    #
+    def depsitems_from_envcalls(self, node):
+        depsList = []
+        for env_operand in variantoptimizer.findVariantNodes(node):
+            call_node = env_operand.parent.parent
+            env_key = call_node.getChild("arguments").children[0].get("value", "")
+            className, classAttribute = self.getClassNameFromEnvKey(env_key)
+            if className:
+                #print className
+                depsItem = DependencyItem(className, classAttribute, self.id, env_operand.get('line', -1))
+                depsItem.isCall = True  # treat as if actual call, to collect recursive deps
+                # .inLoadContext
+                # get 'qx' node of 'qx.core.Environment....'
+                qx_idnode = treeutil.findFirstChainChild(env_operand)
+                scope = qx_idnode.scope
+                inLoadContext = scope.is_load_time # get its scope's .is_load_time
+                depsItem.isLoadDep = inLoadContext
+                if inLoadContext:
+                    depsItem.needsRecursion = True
+                depsList.append(depsItem)
+        return depsList
+
+
+    # - _analyzeClassDepsNode_2 end --------------------------------------------
 
     def getAllEnvChecks(self, nodeline, inLoadContext):
         result = []
