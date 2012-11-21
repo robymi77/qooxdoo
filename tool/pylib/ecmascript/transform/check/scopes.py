@@ -307,7 +307,7 @@ class ScopeVar(object):
         return self
 
     def is_global(self):
-        return bool(self.decl)
+        return not self.decl
 
 
 # - Utilities -----------------------------------------------------------------
