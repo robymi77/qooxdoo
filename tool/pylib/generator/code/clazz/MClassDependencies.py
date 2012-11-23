@@ -33,6 +33,15 @@ from generator.code.ClassList       import ClassList
 from generator                      import Context
 from misc import util
 
+DebugRecDeps = [False,False]
+def debugFunc(deps):
+    #print 'debugFunc testing ...'
+    if DebugRecDeps[1]:
+        elems = [c for c in deps if c.name=='qx.bom.client.EcmaScript'] 
+        if not elems:
+            import pydb; pydb.debugger()
+    return True
+
 ClassesAll = None # {'cid':generator.code.Class}
 
 GlobalSymbolsCombinedPatt = re.compile('|'.join(r'^%s\b' % re.escape(x) for x in lang.GLOBALS + lang.QXGLOBALS))
@@ -165,7 +174,13 @@ class MClassDependencies(object):
             classMaps = {}
             for dep in shallowDeps['load']:
                 if dep.needsRecursion:
+                    if self.id=='gui.theme.Appearance' and (dep.name,dep.attribute)==('qx.Theme','define'):
+                        print 'diving down ...'
+                        DebugRecDeps[0] = True
                     recDeps = self.getTransitiveDeps(dep, variantSet, classMaps, force=force)  # need variantSet here (not relevantVariants), as the recursive deps might depend on any of those
+                    if self.id=='gui.theme.Appearance' and (dep.name,dep.attribute)==('qx.Theme','define'):
+                        assert debugFunc(recDeps)
+                        print 'g.t.App XXX:',[c for c in recDeps if c.name=='qx.bom.client.EcmaScript'] 
                     for recdep in recDeps:
                         recdep.isLoadDep = True # all these become load dependencies
                     newLoad.update(recDeps)
@@ -219,10 +234,11 @@ class MClassDependencies(object):
           or force == True
           or not transitiveDepsAreFresh(deps, cacheModTime)):
             cached = False
-            #if self.id=='gui.theme.Appearance':
-            #    import pydb; pydb.debugger()
             deps = buildShallowDeps(tree)
             deps = buildTransitiveDeps(deps)
+            if self.id=='gui.theme.Appearance':
+                #import pydb; pydb.debugger()
+                print 'g.t.App: has:', [c for c in deps['load'] if c.name=='qx.bom.client.EcmaScript']
             if not tree: # don't cache for a passed-in tree
                 classInfo[cacheId] = (deps, time.time())
                 self._writeClassCache(classInfo)
@@ -425,12 +441,20 @@ class MClassDependencies(object):
     def _analyzeClassDepsNode_2(self, node, depsList, inLoadContext, inDefer=False):
         # get global vars from tree
         global_nodes = self.get_node_globals(node)
-        # create DependencyItem()'s for them
+        # filter and create DependencyItem()'s for them
         deps_items = self.depsitems_from_vars(global_nodes)
         depsList.extend(deps_items)
         # get class references from qx.core.Environment.* calls
         deps_items = self.depsitems_from_envcalls(node)
         depsList.extend(deps_items)
+        if self.id == 'qx.dev.StackTrace' and node.get('line',0)==197:
+            print '\nqx.dev.StackTrace:', deps_items
+            #import pydb; pydb.debugger()
+            #DebugRecDeps[0] += 1
+            #print 'DebugRecDeps:', DebugRecDeps
+            #if DebugRecDeps[0]:
+            #    DebugRecDeps[1] = True
+            
 
         return
 
@@ -534,6 +558,10 @@ class MClassDependencies(object):
     #
     def depsitems_from_envcalls(self, node):
         depsList = []
+        if self.id == 'gui.theme.Appearance':
+            #print 'envcalls:', list(variantoptimizer.findVariantNodes(node))
+            #print 'envcalls:', repr(node)
+            pass
         for env_operand in variantoptimizer.findVariantNodes(node):
             call_node = env_operand.parent.parent
             env_key = call_node.getChild("arguments").children[0].get("value", "")
@@ -954,6 +982,12 @@ class MClassDependencies(object):
             classId  = dependencyItem.name
             methodId = dependencyItem.attribute
             function_pruned = False
+            res = set()
+            if DebugRecDeps[0]:
+                if (classId,methodId)==('qx.Theme','define'):
+                    print 'recursing on:',  dependencyItem
+                    DebugRecDeps[1] = True
+                    import pydb; pydb.debugger()
 
             cacheId = "methoddeps-%r-%r-%r" % (classId, methodId, variantString)
                 # The bad thing here is that 'variantString' contains environment setting
@@ -964,98 +998,109 @@ class MClassDependencies(object):
                 # independent of a specific environement key; but its recursive deps could
                 # well be. Fix: Get the shallow deps of the current method from cache, and then get the
                 # trans. deps of those items. They then could appy the same reasoning.
-            if not force:
-                # Check cache
-                cachedDeps, _ = cache.read(cacheId)  # no use to put this into a file, due to transitive dependencies to other files
-                if cachedDeps != None:
-                    console.debug("using cached result")
-                    #print "\nusing cached result for", classId, methodId
-                    return cachedDeps
+            while 1: # to use 'break'
+                if not force:
+                    # Check cache
+                    cachedDeps, _ = cache.read(cacheId)  # no use to put this into a file, due to transitive dependencies to other files
+                    if cachedDeps != None:
+                        console.debug("using cached result")
+                        #print "\nusing cached result for", classId, methodId
+                        res = cachedDeps
+                        break
 
-            # Need to calculate deps
-            console.dot("_")
+                # Need to calculate deps
+                console.dot("_")
 
-            # Check known class
-            if classId not in ClassesAll:
-                console.debug("Skipping unknown class of dependency: %s#%s (%s:%d)" % (classId, methodId,
-                              dependencyItem.requestor, dependencyItem.line))
-                return set()
+                # Check known class
+                if classId not in ClassesAll:
+                    console.debug("Skipping unknown class of dependency: %s#%s (%s:%d)" % (classId, methodId,
+                                  dependencyItem.requestor, dependencyItem.line))
+                    res = set()
+                    break
 
-            # Check other class
-            elif classId != self.id:
-                classObj = ClassesAll[classId]
-                otherdeps = classObj.getTransitiveDeps(dependencyItem, variants, classMaps, totalDeps, force)
-                return otherdeps
+                # Check other class
+                elif classId != self.id:
+                    classObj = ClassesAll[classId]
+                    otherdeps = classObj.getTransitiveDeps(dependencyItem, variants, classMaps, totalDeps, force)
+                    res = otherdeps
+                    break
 
-            # Check own hierarchy
-            defClassId, attribNode = self.findClassForFeature(methodId, variants, classMaps)
+                # Check own hierarchy
+                defClassId, attribNode = self.findClassForFeature(methodId, variants, classMaps)
 
-            # lookup error
-            if not defClassId or defClassId not in ClassesAll:
-                console.debug("Skipping unknown definition of dependency: %s#%s (%s:%d)" % (classId, 
-                              methodId, dependencyItem.requestor, dependencyItem.line))
-                return set()
-            
-            defDepsItem = DependencyItem(defClassId, methodId, classId)
-            if dependencyItem.isCall:
-                defDepsItem.isCall = True  # if the dep is an inherited method being called, pursue the parent method as call
-            localDeps   = set()
+                # lookup error
+                if not defClassId or defClassId not in ClassesAll:
+                    console.debug("Skipping unknown definition of dependency: %s#%s (%s:%d)" % (classId, 
+                                  methodId, dependencyItem.requestor, dependencyItem.line))
+                    res = set()
+                    break
+                
+                defDepsItem = DependencyItem(defClassId, methodId, classId)
+                if dependencyItem.isCall:
+                    defDepsItem.isCall = True  # if the dep is an inherited method being called, pursue the parent method as call
+                localDeps   = set()
 
-            # inherited feature
-            if defClassId != classId:
-                self.resultAdd(defDepsItem, localDeps)
-                defClass = ClassesAll[defClassId]
-                otherdeps = defClass.getTransitiveDeps(defDepsItem, variants, classMaps, totalDeps, force)
-                localDeps.update(otherdeps)
-                return localDeps
+                # inherited feature
+                if defClassId != classId:
+                    self.resultAdd(defDepsItem, localDeps)
+                    defClass = ClassesAll[defClassId]
+                    otherdeps = defClass.getTransitiveDeps(defDepsItem, variants, classMaps, totalDeps, force)
+                    localDeps.update(otherdeps)
+                    res = localDeps
+                    break
 
-            # Process own deps
-            console.debug("%s#%s dependencies:" % (classId, methodId))
-            console.indent()
+                # Process own deps
+                console.debug("%s#%s dependencies:" % (classId, methodId))
+                console.indent()
 
-            #if (classId,methodId) == ('qx.Class','define'):
-            #    import pydb; pydb.debugger()
+                #if (classId,methodId) == ('qx.Class','define'):
+                #    import pydb; pydb.debugger()
 
-            if isinstance(attribNode, Node):
+                if isinstance(attribNode, Node):
 
-                if (attribNode.getChild("function", False)       # is it a function(){..} value?
-                    and not dependencyItem.isCall                # and the reference was no call
-                   ):
-                    function_pruned = True
-                    pass                                         # don't lift those deps
-                else:
-                    # Get the method's immediate deps
-                    # TODO: is this the right API?!
-                    depslist = []
-                    if attribNode.type == 'value':
-                       attribNode = attribNode.children[0] 
-                    self._analyzeClassDepsNode(attribNode, depslist, inLoadContext=False)
-                    console.debug( "shallow dependencies: %r" % (depslist,))
+                    if (attribNode.getChild("function", False)       # is it a function(){..} value?
+                        and not dependencyItem.isCall                # and the reference was no call
+                       ):
+                        function_pruned = True
+                        pass                                         # don't lift those deps
+                    else:
+                        # Get the method's immediate deps
+                        # TODO: is this the right API?!
+                        depslist = []
+                        if attribNode.type == 'value':
+                           attribNode = attribNode.children[0] 
+                        self._analyzeClassDepsNode(attribNode, depslist, inLoadContext=False)
+                        console.debug( "shallow dependencies: %r" % (depslist,))
 
-                    # This depends on attribNode belonging to current class
-                    my_ignores = self.getHints("ignoreDeps") + self.getHints("optionalDeps")
-                    my_ignores = map(MetaIgnore, my_ignores)
+                        # This depends on attribNode belonging to current class
+                        my_ignores = self.getHints("ignoreDeps") + self.getHints("optionalDeps")
+                        my_ignores = map(MetaIgnore, my_ignores)
 
-                    for depsItem in depslist:
-                        if depsItem in totalDeps:
-                            continue
-                        if depsItem.name in my_ignores:
-                            continue
-                        if self.resultAdd(depsItem, localDeps):
-                            totalDeps = totalDeps.union(localDeps)
-                            # Recurse dependencies
-                            downstreamDeps = getTransitiveDepsR(depsItem, variants, totalDeps)
-                            localDeps.update(downstreamDeps)
+                        for depsItem in depslist:
+                            if depsItem in totalDeps:
+                                continue
+                            if depsItem.name in my_ignores:
+                                continue
+                            if self.resultAdd(depsItem, localDeps):
+                                totalDeps = totalDeps.union(localDeps)
+                                # Recurse dependencies
+                                downstreamDeps = getTransitiveDepsR(depsItem, variants, totalDeps)
+                                assert debugFunc(downstreamDeps)
+                                localDeps.update(downstreamDeps)
 
-            # Cache update
-            # ---   i cannot cache currently, if the deps of a function are pruned
-            #       when the function is passed as a ref, rather than called (s. above
-            #       around 'attribNode.getChild("function",...)')
-            if not function_pruned:
-                cache.write(cacheId, localDeps, memory=True, writeToFile=False)
-             
-            console.outdent()
-            return localDeps
+                # Cache update
+                # ---   i cannot cache currently, if the deps of a function are pruned
+                #       when the function is passed as a ref, rather than called (s. above
+                #       around 'attribNode.getChild("function",...)')
+                if not function_pruned:
+                    cache.write(cacheId, localDeps, memory=True, writeToFile=False)
+                 
+                console.outdent()
+                res = localDeps
+                break
+
+            assert debugFunc(res)
+            return res
 
         # -- getTransitiveDeps -------------------------------------------------
 
