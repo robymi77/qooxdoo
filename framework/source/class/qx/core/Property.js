@@ -774,8 +774,7 @@ qx.Bootstrap.define("qx.core.Property",
           } else if (config.init !== undefined) {
             code.push('return this.', store.init[name], ';');
           } else {
-            code.push('if(init==qx.core.Property.$$inherit)throw new Error("Inheritable property ', name, ' of an instance of ', clazz.classname, ' is not (yet) ready!");');
-          }
+            code.push('if(init==qx.core.Property.$$inherit)throw new Error("Inheritable property ', name, ' of an instance of ', clazz.classname, ' is not (yet) ready!");'); }
 
           code.push('return init;');
         }
@@ -793,6 +792,107 @@ qx.Bootstrap.define("qx.core.Property",
       return this.__unwrapFunctionFromCode(instance, members, name, variant, code);
     },
 
+    executeOptimizedGetter_1 : function(instance, clazz, name, variant)
+    {
+      var config = clazz.$$properties[name];
+      var members = clazz.prototype;
+      var store = this.$$store;
+
+      var code = function() {
+
+          if(this[store.runtime[name]]!==undefined)
+            return this[store.runtime[name]];
+
+          if (config.inheritable)
+          {
+            if(this[store.inherit[name]]!==undefined)
+              return this[store.inherit[name]];
+          }
+
+          if(this[store.user[name]]!==undefined)
+            return this[store.user[name]];
+
+          if (config.themeable)
+          {
+            if(this[store.theme[name]]!==undefined)
+              return this[store.theme[name]];
+          }
+
+          if (config.deferredInit && config.init === undefined)
+          {
+            if(this[store.init[name]]!==undefined)
+              return this[store.init[name]];
+          }
+
+          if (config.init !== undefined)
+          {
+            if (config.inheritable)
+            {
+              var init=this[store.init[name]];
+
+              if (config.nullable) {
+                if(init==qx.core.Property.$$inherit)init=null;
+                return this[store.init[name]];
+              } else {
+                if(init==qx.core.Property.$$inherit)throw new Error("Inheritable property " + name + ' of an instance of ' + clazz.classname + ' is not (yet) ready!');
+              }
+
+              return init;
+            }
+            else
+            {
+              return this[store.init[name]];
+            }
+          }
+          else if (config.inheritable || config.nullable) {
+            return null;
+          } else {
+            throw new Error('Property ' + name + ' of an instance of ' + clazz.classname + ' is not (yet) ready!');
+          }
+        };
+
+      return this.__unwrapFunctionFromCode_1(instance, members, name, variant, code);
+    },
+
+    __unwrapFunctionFromCode_1 : function(instance, members, name, variant, code, args)
+    {
+      var store = this.$$method[variant][name];
+
+      // Output generate code
+      if (qx.core.Environment.get("qx.debug"))
+      {
+        if (qx.core.Environment.get("qx.debug.property.level") > 1) {
+          qx.Bootstrap.debug("Code[" + this.$$method[variant][name] + "]: " + code);
+        }
+
+        // Overriding temporary wrapper
+        try{
+          members[store] =  new Function("value", code.join(""));
+        } catch(ex) {
+          throw new Error("Malformed generated code to unwrap method: " + this.$$method[variant][name] + "\n" + code.join(""));
+        }
+      }
+      else
+      {
+        members[store] =  new Function("value", code.join(""));
+      }
+
+      // Enable profiling code
+      if (qx.core.Environment.get("qx.aspects")) {
+        members[store] = qx.core.Aspect.wrap(instance.classname + "." + store, members[store], "property");
+      }
+
+      qx.Bootstrap.setDisplayName(members[store], instance.classname + ".prototype", store)
+
+      // Executing new function
+      if (args === undefined) {
+        return instance[store]();
+      } else if (qx.core.Environment.get("qx.debug")) {
+        return instance[store].apply(instance, args);
+      } else {
+        return instance[store](args[0]);
+      }
+    },
 
     /**
      * Generates the optimized setter
