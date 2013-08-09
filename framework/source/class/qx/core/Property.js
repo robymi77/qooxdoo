@@ -686,20 +686,11 @@ qx.Bootstrap.define("qx.core.Property",
       if (qx.core.Environment.get("qx.debug"))
       {
         if (qx.core.Environment.get("qx.debug.property.level") > 1) {
-          qx.Bootstrap.debug("Code[" + this.$$method[variant][name] + "]: " + code.join(""));
-        }
-
-        // Overriding temporary wrapper
-        try{
-          members[store] =  new Function("value", code.join(""));
-        } catch(ex) {
-          throw new Error("Malformed generated code to unwrap method: " + this.$$method[variant][name] + "\n" + code.join(""));
+          qx.Bootstrap.debug("Code[" + this.$$method[variant][name] + "]: " + code);
         }
       }
-      else
-      {
-        members[store] =  new Function("value", code.join(""));
-      }
+      // Overriding temporary wrapper
+      members[store] =  code
 
       // Enable profiling code
       if (qx.core.Environment.get("qx.aspects")) {
@@ -729,69 +720,6 @@ qx.Bootstrap.define("qx.core.Property",
      * @param variant {String} Method variant.
      * @return {var} Execute return value of apply generated function, generally the incoming value
      */
-    executeOptimizedGetter_1 : function(instance, clazz, name, variant)
-    {
-      var config = clazz.$$properties[name];
-      var members = clazz.prototype;
-      var code = [];
-      var store = this.$$store;
-
-      code.push('if(this.', store.runtime[name], '!==undefined)');
-      code.push('return this.', store.runtime[name], ';');
-
-      if (config.inheritable)
-      {
-        code.push('else if(this.', store.inherit[name], '!==undefined)');
-        code.push('return this.', store.inherit[name], ';');
-        code.push('else ');
-      }
-
-      code.push('if(this.', store.user[name], '!==undefined)');
-      code.push('return this.', store.user[name], ';');
-
-      if (config.themeable)
-      {
-        code.push('else if(this.', store.theme[name], '!==undefined)');
-        code.push('return this.', store.theme[name], ';');
-      }
-
-      if (config.deferredInit && config.init === undefined)
-      {
-        code.push('else if(this.', store.init[name], '!==undefined)');
-        code.push('return this.', store.init[name], ';');
-      }
-
-      code.push('else ');
-
-      if (config.init !== undefined)
-      {
-        if (config.inheritable)
-        {
-          code.push('var init=this.', store.init[name], ';');
-
-          if (config.nullable) {
-            code.push('if(init==qx.core.Property.$$inherit)init=null;');
-          } else if (config.init !== undefined) {
-            code.push('return this.', store.init[name], ';');
-          } else {
-            code.push('if(init==qx.core.Property.$$inherit)throw new Error("Inheritable property ', name, ' of an instance of ', clazz.classname, ' is not (yet) ready!");'); }
-
-          code.push('return init;');
-        }
-        else
-        {
-          code.push('return this.', store.init[name], ';');
-        }
-      }
-      else if (config.inheritable || config.nullable) {
-        code.push('return null;');
-      } else {
-        code.push('throw new Error("Property ', name, ' of an instance of ', clazz.classname, ' is not (yet) ready!");');
-      }
-
-      return this.__unwrapFunctionFromCode(instance, members, name, variant, code);
-    },
-
     executeOptimizedGetter : function(instance, clazz, name, variant)
     {
       var config = clazz.$$properties[name];
@@ -852,38 +780,7 @@ qx.Bootstrap.define("qx.core.Property",
           }
         };
 
-      return this.__unwrapFunctionFromCode_1(instance, members, name, variant, code);
-    },
-
-    __unwrapFunctionFromCode_1 : function(instance, members, name, variant, code, args)
-    {
-      var store = this.$$method[variant][name];
-
-      // Output generate code
-      if (qx.core.Environment.get("qx.debug"))
-      {
-        if (qx.core.Environment.get("qx.debug.property.level") > 1) {
-          qx.Bootstrap.debug("Code[" + this.$$method[variant][name] + "]: " + code);
-        }
-      }
-      // Overriding temporary wrapper
-      members[store] =  code
-
-      // Enable profiling code
-      if (qx.core.Environment.get("qx.aspects")) {
-        members[store] = qx.core.Aspect.wrap(instance.classname + "." + store, members[store], "property");
-      }
-
-      qx.Bootstrap.setDisplayName(members[store], instance.classname + ".prototype", store)
-
-      // Executing new function
-      if (args === undefined) {
-        return instance[store]();
-      } else if (qx.core.Environment.get("qx.debug")) {
-        return instance[store].apply(instance, args);
-      } else {
-        return instance[store](args[0]);
-      }
+      return this.__unwrapFunctionFromCode(instance, members, name, variant, code);
     },
 
     /**
@@ -897,70 +794,6 @@ qx.Bootstrap.define("qx.core.Property",
      * @param args {arguments} Incoming arguments of wrapper method
      * @return {var} Execute return value of apply generated function, generally the incoming value
      */
-    executeOptimizedSetter_1 : function(instance, clazz, name, variant, args)
-    {
-      var config = clazz.$$properties[name];
-      var members = clazz.prototype;
-      var code = [];
-
-      var incomingValue = variant === "set" || variant === "setThemed" || variant === "setRuntime" || (variant === "init" && config.init === undefined);
-      var hasCallback = config.apply || config.event || config.inheritable;
-
-
-      var store = this.__getStore(variant, name);
-
-      this.__emitSetterPreConditions(code, config, name, variant, incomingValue);
-
-      if (incomingValue) {
-        this.__emitIncomingValueTransformation(code, clazz, config, name);
-      }
-
-      if (hasCallback) {
-        this.__emitOldNewComparison(code, incomingValue, store, variant);
-      }
-
-      if (config.inheritable) {
-        code.push('var inherit=prop.$$inherit;');
-      }
-
-      if (qx.core.Environment.get("qx.debug"))
-      {
-        if (incomingValue) {
-          this.__emitIncomingValueValidation(code, config, clazz, name, variant);
-        }
-      }
-
-      if (!hasCallback) {
-        this.__emitStoreValue(code, name, variant, incomingValue);
-      } else {
-        this.__emitStoreComputedAndOldValue(code, config, name, variant, incomingValue);
-      }
-
-      if (config.inheritable) {
-        this.__emitStoreInheritedPropertyValue(code, config, name, variant);
-      } else if (hasCallback) {
-        this.__emitNormalizeUndefinedValues(code, config, name, variant)
-      }
-
-      if (hasCallback)
-      {
-        this.__emitCallCallback(code, config, name, variant);
-
-        // Refresh children
-        // Requires the parent/children interface
-        if (config.inheritable && members._getChildren) {
-          this.__emitRefreshChildrenValue(code, name);
-        }
-      }
-
-      // Return value
-      if (incomingValue) {
-        code.push('return value;');
-      }
-
-      return this.__unwrapFunctionFromCode(instance, members, name, variant, code, args);
-    },
-
     executeOptimizedSetter : function(instance, clazz, name, variant, args)
     {
       var config = clazz.$$properties[name];
@@ -968,21 +801,22 @@ qx.Bootstrap.define("qx.core.Property",
       var incomingValue = variant === "set" || variant === "setThemed" || variant === "setRuntime" || (variant === "init" && config.init === undefined);
       var hasCallback = config.apply || config.event || config.inheritable;
       var store = this.__getStore(variant, name);
+      var that = this;
 
       var code = function (value) {
-
         var prop=qx.core.Property;
+        var computed;
 
-        var setterPreConditions = this.__emitSetterPreConditions_1(prop, config, name, variant, incomingValue);
+        var setterPreConditions = that.__emitSetterPreConditions(prop, config, name, variant, incomingValue);
         setterPreConditions(value);
 
         if (incomingValue) {
-          var incomingValueTransformation = this.__emitIncomingValueTransformation_1(clazz, config, name);
+          var incomingValueTransformation = that.__emitIncomingValueTransformation(clazz, config, name);
           value = incomingValueTransformation(value);
         }
 
         if (hasCallback) {
-          //this.__emitOldNewComparison_1(incomingValue, store, variant);
+          //that.__emitOldNewComparison_1(incomingValue, store, variant);
           var resetValue = (
             variant === "reset" ||
             variant === "resetThemed" ||
@@ -990,9 +824,9 @@ qx.Bootstrap.define("qx.core.Property",
           );
 
           if (incomingValue) {
-            if(this[store]===value)return value;
+            if(that[store]===value)return value;
           } else if (resetValue) {
-            if(this.[store]===undefined)return;
+            if(that[store]===undefined)return;
           }
         }
 
@@ -1003,47 +837,107 @@ qx.Bootstrap.define("qx.core.Property",
         if (qx.core.Environment.get("qx.debug"))
         {
           if (incomingValue) {
-            var incomingValueValidation = this.__emitIncomingValueValidation_1(prop, inherit, config, clazz, name, variant);
+            var incomingValueValidation = that.__emitIncomingValueValidation(prop, inherit, config, clazz, name, variant);
             incomingValueValidation(value);
           }
         }
 
         if (!hasCallback) {
-          var emitStoreValue = this.__emitStoreValue_1(name, variant, incomingValue);
+          var emitStoreValue = that.__emitStoreValue(name, variant, incomingValue);
           // the enclosing function will be called with proper 'this' binding,
           // so it should not be necessary to explicitly bind 'this' for the
           // subcalls
           //emitStoreValue.call(instance, value) 
-          emitStoreValue(value)
+          emitStoreValue(value);
         } else {
-          var emitStoreComputedAndOldValue = this.__emitStoreComputedAndOldValue_1(config, name, variant, incomingValue);
-          emitStoreComputedAndOldValue(value)
+          var emitStoreComputedAndOldValue = that.__emitStoreComputedAndOldValue(config, name, variant, incomingValue);
+          computed = emitStoreComputedAndOldValue(value, prop);
         }
 
         if (config.inheritable) {
-          this.__emitStoreInheritedPropertyValue(code, config, name, variant);
+          var emitStoreInheritedPropertyValue = that.__emitStoreInheritedPropertyValue(config, name, variant);
+          computed = emitStoreInheritedPropertyValue(value, computed);
         } else if (hasCallback) {
-          this.__emitNormalizeUndefinedValues(code, config, name, variant)
+          var emitNormalizeUndefinedValues = that.__emitNormalizeUndefinedValues(config, name, variant)
+          emitNormalizeUndefinedValues(value);
         }
 
         if (hasCallback)
         {
-          this.__emitCallCallback(code, config, name, variant);
+          that.__emitCallCallback(code, config, name, variant);
 
           // Refresh children
           // Requires the parent/children interface
           if (config.inheritable && members._getChildren) {
-            this.__emitRefreshChildrenValue(code, name);
+            that.__emitRefreshChildrenValue(code, name);
           }
         }
 
         // Return value
         if (incomingValue) {
-          code.push('return value;');
+          return value;
         }
       };
 
-      return this.__unwrapFunctionFromCode_1(instance, members, name, variant, code, args);
+      return this.__unwrapFunctionFromCode(instance, members, name, variant, code, args);
+    },
+
+    __getSetter : function(clazz, config, name, variant)
+    {
+      var prop = qx.core.Property;
+      var msg = "Invalid incoming value for property '"+name+"' of class '"+clazz+"'";
+      //var config_apply = config.apply; // etc.
+
+      return function(value)
+      {
+        var computed, old;
+        if (arguments.length !== 1)
+          prop.error(this, 1, name, variant, value);
+
+        if (value === undefined)
+          prop.error(this, 2, name, variant, value);
+
+        if (this[prop.$$store.user[name]] === value)
+          return value;
+
+        if (value !== null)
+          if (!(qx.core.Assert.assertString(value, msg) || true))
+            prop.error(this, 5, name, variant, value);
+
+        if (this[prop.$$store.runtime[name]] !== undefined)
+        {
+          old = computed = this[prop.$$store.runtime[name]];
+          this[prop.$$store.user[name]] = value;
+        } else if (this[prop.$$store.user[name]] !== undefined)
+        {
+          old = this[prop.$$store.user[name]];
+          computed = this[prop.$$store.user[name]] = value;
+        } else if (this[prop.$$store.useinit[name]])
+        {
+          old = this[prop.$$store.init[name]];
+          delete this[prop.$$store.useinit[name]];
+          computed = this[prop.$$store.user[name]] = value;
+        } else
+        {
+          computed = this[prop.$$store.user[name]] = value;
+        }
+
+        if (old === computed)
+          return value;
+
+        if (old === undefined)
+          old = null;
+
+        if (config.apply)
+          this[config.apply](computed, old, name, variant);
+        if (config.event)
+        {
+          var reg = qx.event.Registration;
+          if (reg.hasListener(this, config.event))
+            reg.fireEvent(this, config.event, qx.event.type.Data, [computed, old]);
+        }
+        return value;
+      }
     },
 
 
@@ -1080,50 +974,7 @@ qx.Bootstrap.define("qx.core.Property",
      * @param variant {String} Method variant.
      * @param incomingValue {Boolean} Whether the setter has an incoming value
      */
-    __emitSetterPreConditions : function(code, config, name, variant, incomingValue)
-    {
-      if (qx.core.Environment.get("qx.debug"))
-      {
-        code.push('var prop=qx.core.Property;');
-
-        if (variant === "init") {
-          code.push('if(this.$$initialized)prop.error(this,0,"', name, '","', variant, '",value);');
-        }
-
-        if (variant === "refresh")
-        {
-          // do nothing
-          // refresh() is internal => no arguments test
-          // also note that refresh() supports "undefined" values
-        }
-        else if (incomingValue)
-        {
-          // Check argument length
-          code.push('if(arguments.length!==1)prop.error(this,1,"', name, '","', variant, '",value);');
-
-          // Undefined check
-          code.push('if(value===undefined)prop.error(this,2,"', name, '","', variant, '",value);');
-        }
-        else
-        {
-          // Check argument length
-          code.push('if(arguments.length!==0)prop.error(this,3,"', name, '","', variant, '",value);');
-        }
-      }
-      else
-      {
-        if (!config.nullable || config.check || config.inheritable) {
-          code.push('var prop=qx.core.Property;');
-        }
-
-        // Undefined check
-        if (variant === "set") {
-          code.push('if(value===undefined)prop.error(this,2,"', name, '","', variant, '",value);');
-        }
-      }
-    },
-
-    __emitSetterPreConditions_1 : function(prop, config, name, variant, incomingValue)
+    __emitSetterPreConditions : function(prop, config, name, variant, incomingValue)
     {
       return function(value) {
         if (qx.core.Environment.get("qx.debug"))
@@ -1171,29 +1022,7 @@ qx.Bootstrap.define("qx.core.Property",
      * @param config {Object} The property configuration map
      * @param name {String} name of the property
      */
-    __emitIncomingValueTransformation : function(code, clazz, config, name)
-    {
-      // Call user-provided transform method, if one is provided.  Transform
-      // method should either throw an error or return the new value.
-      if (config.transform) {
-        code.push('value=this.', config.transform, '(value);');
-      }
-
-      // Call user-provided validate method, if one is provided.  Validate
-      // method should either throw an error or do nothing.
-      if (config.validate) {
-        // if it is a string
-        if (typeof config.validate === "string") {
-          code.push('this.', config.validate, '(value);');
-        // if its a function otherwise
-        } else if (config.validate instanceof Function) {
-          code.push(clazz.classname, '.$$properties.', name);
-          code.push('.validate.call(this, value);');
-        }
-      }
-    },
-
-    __emitIncomingValueTransformation_1 : function(clazz, config, name)
+    __emitIncomingValueTransformation : function(clazz, config, name)
     {
       return function(value) 
       {
@@ -1255,7 +1084,7 @@ qx.Bootstrap.define("qx.core.Property",
         if (incomingValue) {
           if(this[store]===value)return value;
         } else if (resetValue) {
-          if(this.[store]===undefined)return;
+          if(this[store]===undefined)return;
         }
       };
     },
@@ -1274,69 +1103,6 @@ qx.Bootstrap.define("qx.core.Property",
      */
     __emitIncomingValueValidation : qx.core.Environment.select("qx.debug",
     {
-      "true" : function(code, config, clazz, name, variant)
-      {
-        // Null check
-        if (!config.nullable) {
-          code.push('if(value===null)prop.error(this,4,"', name, '","', variant, '",value);');
-        }
-
-        // Processing check definition
-        if (config.check !== undefined)
-        {
-          code.push('var msg = "Invalid incoming value for property \''+name+'\' of class \'' + clazz.classname + '\'";');
-
-          // Accept "null"
-          if (config.nullable) {
-            code.push('if(value!==null)');
-          }
-
-          // Inheritable properties always accept "inherit" as value
-          if (config.inheritable) {
-            code.push('if(value!==inherit)');
-          }
-
-          code.push('if(');
-
-          if (this.__checks[config.check] !== undefined)
-          {
-            code.push('!(', this.__checks[config.check], ')');
-          }
-          else if (qx.Class.isDefined(config.check))
-          {
-            code.push('qx.core.Assert.assertInstance(value, qx.Class.getByName("', config.check, '"), msg)');
-          }
-          else if (qx.Interface && qx.Interface.isDefined(config.check))
-          {
-            code.push('qx.core.Assert.assertInterface(value, qx.Interface.getByName("', config.check, '"), msg)');
-          }
-          else if (typeof config.check === "function")
-          {
-            code.push('!', clazz.classname, '.$$properties.', name);
-            code.push('.check.call(this, value)');
-          }
-          else if (typeof config.check === "string")
-          {
-            code.push('!(', config.check, ')');
-          }
-          else if (config.check instanceof Array)
-          {
-            code.push('qx.core.Assert.assertInArray(value, ', clazz.classname, '.$$properties.', name, '.check, msg)');
-          }
-          else
-          {
-            throw new Error("Could not add check to property " + name + " of class " + clazz.classname);
-          }
-
-          code.push(')prop.error(this,5,"', name, '","', variant, '",value);');
-        }
-      },
-
-      "false" : undefined
-    }),
-
-    __emitIncomingValueValidation_1 : qx.core.Environment.select("qx.debug",
-    {
       "true" : function(prop, inherit, config, clazz, name, variant)
       {
         return function(value)
@@ -1353,11 +1119,12 @@ qx.Bootstrap.define("qx.core.Property",
             var msg = "Invalid incoming value for property '"+name+"' of class '" + clazz.classname + "'";
 
             // Accept "null"
-            if (config.nullable && value!==null) {
+            if (config.nullable && value!==null) 
+            {
 
               // Inheritable properties always accept "inherit" as value
-              if (config.inheritable && value!==inherit)) {
-
+              if (config.inheritable && value!==inherit) 
+              {
                 if (this.__checks[config.check] !== undefined)
                 {
                   var cond = !(this.__checks[config.check]);
@@ -1388,6 +1155,8 @@ qx.Bootstrap.define("qx.core.Property",
                 }
 
                 if (cond)prop.error(this,5,name,variant,value);
+              }
+            }
           }
         };
       },
@@ -1404,42 +1173,7 @@ qx.Bootstrap.define("qx.core.Property",
      * @param variant {String} Method variant.
      * @param incomingValue {Boolean} Whether the setter has an incoming value
      */
-    __emitStoreValue : function(code, name, variant, incomingValue)
-    {
-      if (variant === "setRuntime")
-      {
-        code.push('this.', this.$$store.runtime[name], '=value;');
-      }
-      else if (variant === "resetRuntime")
-      {
-        code.push('if(this.', this.$$store.runtime[name], '!==undefined)');
-        code.push('delete this.', this.$$store.runtime[name], ';');
-      }
-      else if (variant === "set")
-      {
-        code.push('this.', this.$$store.user[name], '=value;');
-      }
-      else if (variant === "reset")
-      {
-        code.push('if(this.', this.$$store.user[name], '!==undefined)');
-        code.push('delete this.', this.$$store.user[name], ';');
-      }
-      else if (variant === "setThemed")
-      {
-        code.push('this.', this.$$store.theme[name], '=value;');
-      }
-      else if (variant === "resetThemed")
-      {
-        code.push('if(this.', this.$$store.theme[name], '!==undefined)');
-        code.push('delete this.', this.$$store.theme[name], ';');
-      }
-      else if (variant === "init" && incomingValue)
-      {
-        code.push('this.', this.$$store.init[name], '=value;');
-      }
-    },
-
-    __emitStoreValue_1 : function(name, variant, incomingValue)
+    __emitStoreValue : function(name, variant, incomingValue)
     {
       var prop = this;
       return function(value)
@@ -1489,279 +1223,9 @@ qx.Bootstrap.define("qx.core.Property",
      * @param variant {String} Method variant.
      * @param incomingValue {Boolean} Whether the setter has an incoming value
      */
-    __emitStoreComputedAndOldValue : function(code, config, name, variant, incomingValue)
+    __emitStoreComputedAndOldValue : function(config, name, variant, incomingValue)
     {
-      if (config.inheritable) {
-        code.push('var computed, old=this.', this.$$store.inherit[name], ';');
-      } else {
-        code.push('var computed, old;');
-      }
-
-
-      // OLD = RUNTIME VALUE
-      code.push('if(this.', this.$$store.runtime[name], '!==undefined){');
-
-      if (variant === "setRuntime")
-      {
-        // Replace it with new value
-        code.push('computed=this.', this.$$store.runtime[name], '=value;');
-      }
-      else if (variant === "resetRuntime")
-      {
-        // Delete field
-        code.push('delete this.', this.$$store.runtime[name], ';');
-
-        // Complex compution of new value
-        code.push('if(this.', this.$$store.user[name], '!==undefined)')
-        code.push('computed=this.', this.$$store.user[name], ';');
-        code.push('else if(this.', this.$$store.theme[name], '!==undefined)');
-        code.push('computed=this.', this.$$store.theme[name], ';');
-        code.push('else if(this.', this.$$store.init[name], '!==undefined){');
-        code.push('computed=this.', this.$$store.init[name], ';');
-        code.push('this.', this.$$store.useinit[name], '=true;');
-        code.push('}');
-      }
-      else
-      {
-        // Use runtime value as it has higher priority
-        code.push('old=computed=this.', this.$$store.runtime[name], ';');
-
-        // Store incoming value
-        if (variant === "set")
-        {
-          code.push('this.', this.$$store.user[name], '=value;');
-        }
-        else if (variant === "reset")
-        {
-          code.push('delete this.', this.$$store.user[name], ';');
-        }
-        else if (variant === "setThemed")
-        {
-          code.push('this.', this.$$store.theme[name], '=value;');
-        }
-        else if (variant === "resetThemed")
-        {
-          code.push('delete this.', this.$$store.theme[name], ';');
-        }
-        else if (variant === "init" && incomingValue)
-        {
-          code.push('this.', this.$$store.init[name], '=value;');
-        }
-      }
-
-      code.push('}');
-
-
-      // OLD = USER VALUE
-      code.push('else if(this.', this.$$store.user[name], '!==undefined){');
-
-      if (variant === "set")
-      {
-        if (!config.inheritable)
-        {
-          // Remember old value
-          code.push('old=this.', this.$$store.user[name], ';');
-        }
-
-        // Replace it with new value
-        code.push('computed=this.', this.$$store.user[name], '=value;');
-      }
-      else if (variant === "reset")
-      {
-        if (!config.inheritable)
-        {
-          // Remember old value
-          code.push('old=this.', this.$$store.user[name], ';');
-        }
-
-        // Delete field
-        code.push('delete this.', this.$$store.user[name], ';');
-
-        // Complex compution of new value
-        code.push('if(this.', this.$$store.runtime[name], '!==undefined)')
-        code.push('computed=this.', this.$$store.runtime[name], ';');
-        code.push('if(this.', this.$$store.theme[name], '!==undefined)');
-        code.push('computed=this.', this.$$store.theme[name], ';');
-        code.push('else if(this.', this.$$store.init[name], '!==undefined){');
-        code.push('computed=this.', this.$$store.init[name], ';');
-        code.push('this.', this.$$store.useinit[name], '=true;');
-        code.push('}');
-      }
-      else
-      {
-        if (variant === "setRuntime")
-        {
-          // Use runtime value where it has higher priority
-          code.push('computed=this.', this.$$store.runtime[name], '=value;');
-        }
-        else if (config.inheritable)
-        {
-          // Use user value where it has higher priority
-          code.push('computed=this.', this.$$store.user[name], ';');
-        }
-        else
-        {
-          // Use user value where it has higher priority
-          code.push('old=computed=this.', this.$$store.user[name], ';');
-        }
-
-        // Store incoming value
-        if (variant === "setThemed")
-        {
-          code.push('this.', this.$$store.theme[name], '=value;');
-        }
-        else if (variant === "resetThemed")
-        {
-          code.push('delete this.', this.$$store.theme[name], ';');
-        }
-        else if (variant === "init" && incomingValue)
-        {
-          code.push('this.', this.$$store.init[name], '=value;');
-        }
-      }
-
-      code.push('}');
-
-
-      // OLD = THEMED VALUE
-      if (config.themeable)
-      {
-        code.push('else if(this.', this.$$store.theme[name], '!==undefined){');
-
-        if (!config.inheritable)
-        {
-          code.push('old=this.', this.$$store.theme[name], ';');
-        }
-
-        if (variant === "setRuntime")
-        {
-          code.push('computed=this.', this.$$store.runtime[name], '=value;');
-        }
-
-        else if (variant === "set")
-        {
-          code.push('computed=this.', this.$$store.user[name], '=value;');
-        }
-
-        // reset() is impossible, because the user has higher priority than
-        // the themed value, so the themed value has no chance to ever get used,
-        // when there is an user value, too.
-
-        else if (variant === "setThemed")
-        {
-          code.push('computed=this.', this.$$store.theme[name], '=value;');
-        }
-        else if (variant === "resetThemed")
-        {
-          // Delete entry
-          code.push('delete this.', this.$$store.theme[name], ';');
-
-          // Fallback to init value
-          code.push('if(this.', this.$$store.init[name], '!==undefined){');
-            code.push('computed=this.', this.$$store.init[name], ';');
-            code.push('this.', this.$$store.useinit[name], '=true;');
-          code.push('}');
-        }
-        else if (variant === "init")
-        {
-          if (incomingValue) {
-            code.push('this.', this.$$store.init[name], '=value;');
-          }
-
-          code.push('computed=this.', this.$$store.theme[name], ';');
-        }
-        else if (variant === "refresh")
-        {
-          code.push('computed=this.', this.$$store.theme[name], ';');
-        }
-
-        code.push('}');
-      }
-
-
-      // OLD = INIT VALUE
-      code.push('else if(this.', this.$$store.useinit[name], '){');
-
-      if (!config.inheritable) {
-        code.push('old=this.', this.$$store.init[name], ';');
-      }
-
-      if (variant === "init")
-      {
-        if (incomingValue) {
-          code.push('computed=this.', this.$$store.init[name], '=value;');
-        } else {
-          code.push('computed=this.', this.$$store.init[name], ';');
-        }
-
-        // useinit flag is already initialized
-      }
-
-      // reset(), resetRuntime() and resetStyle() are impossible, because the user and themed values have a
-      // higher priority than the init value, so the init value has no chance to ever get used,
-      // when there is an user or themed value, too.
-
-      else if (variant === "set" || variant === "setRuntime" || variant === "setThemed" || variant === "refresh")
-      {
-        code.push('delete this.', this.$$store.useinit[name], ';');
-
-        if (variant === "setRuntime") {
-          code.push('computed=this.', this.$$store.runtime[name], '=value;');
-        } else if (variant === "set") {
-          code.push('computed=this.', this.$$store.user[name], '=value;');
-        } else if (variant === "setThemed") {
-          code.push('computed=this.', this.$$store.theme[name], '=value;');
-        } else if (variant === "refresh") {
-          code.push('computed=this.', this.$$store.init[name], ';');
-        }
-      }
-
-      code.push('}');
-
-
-      // OLD = NONE
-
-      // reset(), resetRuntime() and resetStyle() are impossible because otherwise there
-      // is already an old value
-      if (variant === "set" || variant === "setRuntime" || variant === "setThemed" || variant === "init")
-      {
-        code.push('else{');
-
-        if (variant === "setRuntime")
-        {
-          code.push('computed=this.', this.$$store.runtime[name], '=value;');
-        }
-
-        else if (variant === "set")
-        {
-          code.push('computed=this.', this.$$store.user[name], '=value;');
-        }
-
-        else if (variant === "setThemed")
-        {
-          code.push('computed=this.', this.$$store.theme[name], '=value;');
-        }
-
-        else if (variant === "init")
-        {
-          if (incomingValue) {
-            code.push('computed=this.', this.$$store.init[name], '=value;');
-          } else {
-            code.push('computed=this.', this.$$store.init[name], ';');
-          }
-
-          code.push('this.', this.$$store.useinit[name], '=true;');
-        }
-
-        // refresh() will work with the undefined value, later
-        code.push('}');
-      }
-    },
-
-    __emitStoreComputedAndOldValue_1 : function(config, name, variant, incomingValue)
-    {
-      var prop = this;
-      return function(value)
+      return function(value, prop)
       {
         if (config.inheritable) {
           var computed, old=this[prop.$$store.inherit[name]];
@@ -1784,9 +1248,9 @@ qx.Bootstrap.define("qx.core.Property",
             delete this[prop.$$store.runtime[name]];
 
             // Complex compution of new value
-            if(this[prop.$$store.user[name]]!==undefined)'
+            if(this[prop.$$store.user[name]]!==undefined)
               computed=this[prop.$$store.user[name]];
-            else if(this[prop.$$store.theme[name]]!==undefined)'
+            else if(this[prop.$$store.theme[name]]!==undefined)
               computed=this[prop.$$store.theme[name]];
             else if(this[prop.$$store.init[name]]!==undefined){
               computed=this[prop.$$store.init[name]];
@@ -1849,7 +1313,7 @@ qx.Bootstrap.define("qx.core.Property",
             delete this[prop.$$store.user[name]];
 
             // Complex compution of new value
-            if(this[prop.$$store.runtime[name]]!==undefined)'
+            if(this[prop.$$store.runtime[name]]!==undefined)
               computed=this[prop.$$store.runtime[name]];
             if(this[prop.$$store.theme[name]]!==undefined)
               computed=this[prop.$$store.theme[name]];
@@ -1974,13 +1438,13 @@ qx.Bootstrap.define("qx.core.Property",
               delete this[prop.$$store.useinit[name]];
 
               if (variant === "setRuntime") {
-                computed=this.', prop.$$store.runtime[name], '=value;');
+                computed=this[prop.$$store.runtime[name]]=value;
               } else if (variant === "set") {
-                computed=this.', prop.$$store.user[name], '=value;');
+                computed=this[prop.$$store.user[name]]=value;
               } else if (variant === "setThemed") {
-                computed=this.', prop.$$store.theme[name], '=value;');
+                computed=this[prop.$$store.theme[name]]=value;
               } else if (variant === "refresh") {
-                computed=this.', prop.$$store.init[name], ';');
+                computed=this[prop.$$store.init[name]];
               }
             }
           }
@@ -2024,6 +1488,7 @@ qx.Bootstrap.define("qx.core.Property",
             // refresh() will work with the undefined value, later
           }
         }
+        return computed;
       };
     },
 
@@ -2036,54 +1501,58 @@ qx.Bootstrap.define("qx.core.Property",
      * @param name {String} name of the property
      * @param variant {String} Method variant.
      */
-    __emitStoreInheritedPropertyValue : function(code, config, name, variant)
+    __emitStoreInheritedPropertyValue : function(config, name, variant)
     {
-      code.push('if(computed===undefined||computed===inherit){');
+      return function(value, computed)
+      {
+        if(computed===undefined||computed===inherit){');
 
-      if (variant === "refresh") {
-        code.push('computed=value;');
-      } else {
-        code.push('var pa=this.getLayoutParent();if(pa)computed=pa.', this.$$store.inherit[name], ';');
-      }
+        if (variant === "refresh") {
+          computed=value;');
+        } else {
+          var pa=this.getLayoutParent();if(pa)computed=pa.', this.$$store.inherit[name], ';');
+        }
 
-      // Fallback to init value if inheritance was unsuccessful
-      code.push('if((computed===undefined||computed===inherit)&&');
-      code.push('this.', this.$$store.init[name], '!==undefined&&');
-      code.push('this.', this.$$store.init[name], '!==inherit){');
-        code.push('computed=this.', this.$$store.init[name], ';');
-        code.push('this.', this.$$store.useinit[name], '=true;');
-      code.push('}else{');
-      code.push('delete this.', this.$$store.useinit[name], ';}');
+        // Fallback to init value if inheritance was unsuccessful
+        if((computed===undefined||computed===inherit)&&');
+        this.', this.$$store.init[name], '!==undefined&&');
+        this.', this.$$store.init[name], '!==inherit){');
+          computed=this.', this.$$store.init[name], ';');
+          this.', this.$$store.useinit[name], '=true;');
+        }else{');
+        delete this.', this.$$store.useinit[name], ';}');
 
-      code.push('}');
+        }');
 
-      // Compare old/new computed value
-      code.push('if(old===computed)return value;');
+        // Compare old/new computed value
+        if(old===computed)return value;');
 
-      // Note: At this point computed can be "inherit" or "undefined".
+        // Note: At this point computed can be "inherit" or "undefined".
 
-      // Normalize "inherit" to undefined and delete inherited value
-      code.push('if(computed===inherit){');
-      code.push('computed=undefined;delete this.', this.$$store.inherit[name], ';');
-      code.push('}');
+        // Normalize "inherit" to undefined and delete inherited value
+        if(computed===inherit){');
+        computed=undefined;delete this.', this.$$store.inherit[name], ';');
+        }');
 
-      // Only delete inherited value
-      code.push('else if(computed===undefined)');
-      code.push('delete this.', this.$$store.inherit[name], ';');
+        // Only delete inherited value
+        else if(computed===undefined)');
+        delete this.', this.$$store.inherit[name], ';');
 
-      // Store inherited value
-      code.push('else this.', this.$$store.inherit[name], '=computed;');
+        // Store inherited value
+        else this.', this.$$store.inherit[name], '=computed;');
 
-      // Protect against normalization
-      code.push('var backup=computed;');
+        // Protect against normalization
+        var backup=computed;');
 
-      // After storage finally normalize computed and old value
-      if (config.init !== undefined && variant !== "init") {
-        code.push('if(old===undefined)old=this.', this.$$store.init[name], ";");
-      } else {
-        code.push('if(old===undefined)old=null;');
-      }
-      code.push('if(computed===undefined||computed==inherit)computed=null;');
+        // After storage finally normalize computed and old value
+        if (config.init !== undefined && variant !== "init") {
+          if(old===undefined)old=this.', this.$$store.init[name], ";");
+        } else {
+          if(old===undefined)old=null;');
+        }
+        if(computed===undefined||computed==inherit)computed=null;');
+        return computed;
+      };
     },
 
 
