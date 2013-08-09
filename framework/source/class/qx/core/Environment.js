@@ -1280,6 +1280,9 @@ qx.Bootstrap.define("qx.core.Environment",
       this.add("module.events", function() {return true;});
 
       this.add("qx.nativeScrollBars", function() {return false;});
+
+      // qooxdoo properties
+      this.add("qx.property.dynamicAccessors", function() {return true});
     },
 
 

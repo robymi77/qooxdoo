@@ -897,7 +897,7 @@ qx.Bootstrap.define("qx.core.Property",
      * @param args {arguments} Incoming arguments of wrapper method
      * @return {var} Execute return value of apply generated function, generally the incoming value
      */
-    executeOptimizedSetter : function(instance, clazz, name, variant, args)
+    executeOptimizedSetter_1 : function(instance, clazz, name, variant, args)
     {
       var config = clazz.$$properties[name];
       var members = clazz.prototype;
@@ -905,74 +905,63 @@ qx.Bootstrap.define("qx.core.Property",
 
       var incomingValue = variant === "set" || variant === "setThemed" || variant === "setRuntime" || (variant === "init" && config.init === undefined);
       var hasCallback = config.apply || config.event || config.inheritable;
+
+
       var store = this.__getStore(variant, name);
 
-      if (!qx.core.Environment.get("qx.property.dynamicAccessors")
-        && ["set"].indexOf(variant) > -1)
-      {
-        console.log("using new accessors");
-        if (variant === "get")
-          return this.executeOptimizedGetter_1.apply(this, arguments);
-        else if (variant === "set") 
-          code = this.__getSetter(clazz, config, name, variant);
-        return this.__unwrapFunctionFromCode_1(instance, members, name, variant, code, args);
+      this.__emitSetterPreConditions(code, config, name, variant, incomingValue);
+
+      if (incomingValue) {
+        this.__emitIncomingValueTransformation(code, clazz, config, name);
       }
-      else
-      {
-        this.__emitSetterPreConditions(code, config, name, variant, incomingValue);
 
-        if (incomingValue) {
-          this.__emitIncomingValueTransformation(code, clazz, config, name);
-        }
-
-        if (hasCallback) {
-          this.__emitOldNewComparison(code, incomingValue, store, variant);
-        }
-
-        if (config.inheritable) {
-          code.push('var inherit=prop.$$inherit;');
-        }
-
-        if (qx.core.Environment.get("qx.debug"))
-        {
-          if (incomingValue) {
-            this.__emitIncomingValueValidation(code, config, clazz, name, variant);
-          }
-        }
-
-        if (!hasCallback) {
-          this.__emitStoreValue(code, name, variant, incomingValue);
-        } else {
-          this.__emitStoreComputedAndOldValue(code, config, name, variant, incomingValue);
-        }
-
-        if (config.inheritable) {
-          this.__emitStoreInheritedPropertyValue(code, config, name, variant);
-        } else if (hasCallback) {
-          this.__emitNormalizeUndefinedValues(code, config, name, variant)
-        }
-
-        if (hasCallback)
-        {
-          this.__emitCallCallback(code, config, name, variant);
-
-          // Refresh children
-          // Requires the parent/children interface
-          if (config.inheritable && members._getChildren) {
-            this.__emitRefreshChildrenValue(code, name);
-          }
-        }
-
-        // Return value
-        if (incomingValue) {
-          code.push('return value;');
-        }
-
-        return this.__unwrapFunctionFromCode(instance, members, name, variant, code, args);
+      if (hasCallback) {
+        this.__emitOldNewComparison(code, incomingValue, store, variant);
       }
+
+      if (config.inheritable) {
+        code.push('var inherit=prop.$$inherit;');
+      }
+
+      if (qx.core.Environment.get("qx.debug"))
+      {
+        if (incomingValue) {
+          this.__emitIncomingValueValidation(code, config, clazz, name, variant);
+        }
+      }
+
+      if (!hasCallback) {
+        this.__emitStoreValue(code, name, variant, incomingValue);
+      } else {
+        this.__emitStoreComputedAndOldValue(code, config, name, variant, incomingValue);
+      }
+
+      if (config.inheritable) {
+        this.__emitStoreInheritedPropertyValue(code, config, name, variant);
+      } else if (hasCallback) {
+        this.__emitNormalizeUndefinedValues(code, config, name, variant)
+      }
+
+      if (hasCallback)
+      {
+        this.__emitCallCallback(code, config, name, variant);
+
+        // Refresh children
+        // Requires the parent/children interface
+        if (config.inheritable && members._getChildren) {
+          this.__emitRefreshChildrenValue(code, name);
+        }
+      }
+
+      // Return value
+      if (incomingValue) {
+        code.push('return value;');
+      }
+
+      return this.__unwrapFunctionFromCode(instance, members, name, variant, code, args);
     },
 
-    executeOptimizedSetter_1 : function(instance, clazz, name, variant, args)
+    executeOptimizedSetter : function(instance, clazz, name, variant, args)
     {
       var config = clazz.$$properties[name];
       var members = clazz.prototype;
@@ -1056,203 +1045,6 @@ qx.Bootstrap.define("qx.core.Property",
 
       return this.__unwrapFunctionFromCode_1(instance, members, name, variant, code, args);
     },
-
-    __getSetter : function(clazz, config, name, variant, incomingValue)
-    {
-      var prop = qx.core.Property;
-      var msg = "Invalid incoming value for property '"+name+"' of class '"+clazz+"'";
-      //var config_apply = config.apply; // etc.
-      var hasCallback = config.apply || config.event || config.inheritable;
-
-      return function(value)
-      {
-        var computed, old;
-
-        if (qx.core.Environment.get("qx.debug")
-        {
-          if (arguments.length !== 1)
-            prop.error(this, 1, name, variant, value);
-        }
-
-        if (value === undefined)
-          prop.error(this, 2, name, variant, value);
-
-        // Call user-provided transform method, if one is provided.  Transform
-        // method should either throw an error or return the new value.
-        if (config.transform) {
-          value=this[config.transform](value);
-        }
-
-        // Call user-provided validate method, if one is provided.  Validate
-        // method should either throw an error or do nothing.
-        if (config.validate) {
-          // if it is a string
-          if (typeof config.validate === "string") {
-            this[config.validate](value);
-          // if its a function otherwise
-          } else if (config.validate instanceof Function) {
-            clazz.classname.$$properties[name].validate.call(this, value);
-          }
-        }
-
-        if (hasCallback) {
-          //this.__emitOldNewComparison_1(incomingValue, store, variant);
-          var resetValue = (
-            variant === "reset" ||
-            variant === "resetThemed" ||
-            variant === "resetRuntime"
-          );
-
-          if (incomingValue) {
-            if(this[store]===value)return value;
-          } else if (resetValue) {
-            if(this[store]===undefined)return;
-          }
-        }
-
-        if (config.inheritable) {
-          var inherit=prop.$$inherit;
-        }
-
-        if (qx.core.Environment.get("qx.debug"))
-        {
-          if (incomingValue) {
-
-
-
-        if (this[prop.$$store.user[name]] === value)
-          return value;
-
-        if (value !== null)
-          if (!(qx.core.Assert.assertString(value, msg) || true))
-            prop.error(this, 5, name, variant, value);
-
-        if (this[prop.$$store.runtime[name]] !== undefined)
-        {
-          old = computed = this[prop.$$store.runtime[name]];
-          this[prop.$$store.user[name]] = value;
-        } else if (this[prop.$$store.user[name]] !== undefined)
-        {
-          old = this[prop.$$store.user[name]];
-          computed = this[prop.$$store.user[name]] = value;
-        } else if (this[prop.$$store.useinit[name]])
-        {
-          old = this[prop.$$store.init[name]];
-          delete this[prop.$$store.useinit[name]];
-          computed = this[prop.$$store.user[name]] = value;
-        } else
-        {
-          computed = this[prop.$$store.user[name]] = value;
-        }
-
-        if (old === computed)
-          return value;
-
-        if (old === undefined)
-          old = null;
-
-        if (config.apply)
-          this[config.apply](computed, old, name, variant);
-        if (config.event)
-        {
-          var reg = qx.event.Registration;
-          if (reg.hasListener(this, config.event))
-            reg.fireEvent(this, config.event, qx.event.type.Data, [computed, old]);
-        }
-        return value;
-      }
-    },
-
-
-    __getInit : function(clazz, config, name, variant)
-    {
-      var prop = qx.core.Property;
-      var msg = "Invalid incoming value for property '"+name+"' of class '"+clazz+"'";
-      //var config_apply = config.apply; // etc.
-
-      return function(value)
-      {
-        if (qx.core.Environment.get("qx.debug")
-        {
-          if(this.$$initialized)
-            prop.error(this,0,name,variant,value);
-        }
-      };
-    },
-
-
-    __getRefresh : function(clazz, config, name, variant)
-    {
-      var prop = qx.core.Property;
-      var msg = "Invalid incoming value for property '"+name+"' of class '"+clazz+"'";
-      //var config_apply = config.apply; // etc.
-
-      return function(value)
-      {
-        if (qx.core.Environment.get("qx.debug")
-        {
-          // do nothing
-          // refresh() is internal => no arguments test
-          // also note that refresh() supports "undefined" values
-        }
-      };
-    }
-
-
-    __getReset : function(clazz, config, name, variant)
-    {
-      var prop = qx.core.Property;
-      var msg = "Invalid incoming value for property '"+name+"' of class '"+clazz+"'";
-      //var config_apply = config.apply; // etc.
-
-      return function(value)
-      {
-        if (qx.core.Environment.get("qx.debug")
-        {
-          if(arguments.length!==0)
-            prop.error(this,3,name,variant,value);
-        }
-      };
-    }
-
-
-    __setterPreconditions : function(value, prop, config, name, variant, incomingValue)
-    {
-      if (qx.core.Environment.get("qx.debug"))
-      {
-        if (variant === "init") {
-          if(this.$$initialized)prop.error(this,0,name,variant,value);
-        }
-
-        if (variant === "refresh")
-        {
-          // do nothing
-          // refresh() is internal => no arguments test
-          // also note that refresh() supports "undefined" values
-        }
-        else if (incomingValue)
-        {
-          // Check argument length
-          if(arguments.length!==1)prop.error(this,1,name,variant,value);
-
-          // Undefined check
-          if(value===undefined)prop.error(this,2,name,variant,value);
-        }
-        else
-        {
-          // Check argument length
-          if(arguments.length!==0)prop.error(this,3,name,variant,value);
-        }
-      }
-      else
-      {
-        // Undefined check
-        if (variant === "set") {
-          if(value===undefined)prop.error(this,2,name,variant,value);
-        }
-      }
-    },
-
 
 
     /**
