@@ -1,3 +1,9 @@
+/**
+ * @require(qx.lang.normalize.PointerEvents)
+ * @require(qx.module.Template)
+ * @require(qx.module.event.Native)
+ * @require(qx.module.event.Mouse)
+ */
 qx.Bootstrap.define("qx.module.ui.Widget", {
   extend : qxWeb,
 

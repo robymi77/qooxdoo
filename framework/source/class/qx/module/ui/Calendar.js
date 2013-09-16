@@ -1,7 +1,3 @@
-/**
- * @require(qx.module.Template)
- * @require(qx.module.event.Native)
- */
 qx.Bootstrap.define("qx.module.ui.Calendar", {
   extend : qx.module.ui.Widget,
 
@@ -67,17 +63,17 @@ qx.Bootstrap.define("qx.module.ui.Calendar", {
 
       this.forEach(function(item) {
         item = qxWeb(item);
-        item.find(".qx-calendar-prev").on("click", function() {
+        item.find(".qx-calendar-prev").on("pointerup", function() {
           var shownValue = item.getProperty("shownValue");
           item.showValue(new Date(shownValue.getFullYear(), shownValue.getMonth() - 1))
         }, this);
 
-        item.find(".qx-calendar-next").on("click", function() {
+        item.find(".qx-calendar-next").on("pointerup", function() {
           var shownValue = item.getProperty("shownValue");
           item.showValue(new Date(shownValue.getFullYear(), shownValue.getMonth() + 1))
         }, this);
 
-        item.find(".qx-calendar-day").on("click", function(e) {
+        item.find(".qx-calendar-day").on("pointerup", function(e) {
           var day = qxWeb(e.getTarget());
           var value = item.getValue();
           var newValue = new Date(day.getAttribute("value"));

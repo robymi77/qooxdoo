@@ -48,32 +48,32 @@ qx.Class.define("domains.Application",
       var desktop = document.getElementById("desktop");
       var inlineIsle = new qx.ui.root.Inline(desktop, true, true);
       inlineIsle.setLayout(new qx.ui.layout.Canvas());
-      
+
       var toolbar = new qx.ui.toolbar.ToolBar();
       inlineIsle.add(toolbar, {left: 0, right: 0});
-      
-      
+
+
       var newButton = new qx.ui.toolbar.MenuButton("Neu");
       toolbar.add(newButton);
-      
+
       var typeButton = new qx.ui.toolbar.MenuButton("Domain-Typ");
       toolbar.add(typeButton);
-      
+
       var dnsButton = new qx.ui.toolbar.MenuButton("DNS");
       toolbar.add(dnsButton);
-      
+
       var delButton = new qx.ui.toolbar.Button("Subdomain löschen");
       toolbar.add(delButton);
-      
+
       var moveButton = new qx.ui.toolbar.MenuButton("Domain-Umzüge");
       toolbar.add(moveButton);
-      
+
       var sitemapButton = new qx.ui.toolbar.MenuButton("Google Sitemaps");
       toolbar.add(sitemapButton);
-      
+
       var infoButton = new qx.ui.toolbar.Button("Info");
       toolbar.add(infoButton);
-      
+
       var filterButton = new qx.ui.toolbar.Button("Filter");
       toolbar.add(filterButton);
 
@@ -88,8 +88,8 @@ qx.Class.define("domains.Application",
 
       // Menus
       var menu = q("#menu").addClass("qx-menu").appendTo(root).hide();
-      menu.getChildren().on("click", function() {
-        console.log("Menu click on", this.getHtml());
+      menu.getChildren().on("pointerup", function() {
+        console.log("Menu pointerup on", this.getHtml());
       });
 
       // toolbar
@@ -99,8 +99,11 @@ qx.Class.define("domains.Application",
       toolbar.getChildren().button().eq(0).setMenu(menu);
       toolbar.getChildren(".qx-menu-button").setIcon(arrow);
 
+      toolbar.getChildren().on("pointerup", function() {
+        console.log("pointerup on", this.getLabel());
+      });
       toolbar.getChildren().on("click", function() {
-        console.log("Click on", this.getLabel());
+        console.log("click on", this.getLabel());
       });
 
 
@@ -126,7 +129,7 @@ qx.Class.define("domains.Application",
 
       // sorting
       var asc = true;
-      q("#domain-names").on("click", function() {
+      q("#domain-names").on("pointerup", function() {
         asc = !asc;
         this.getSiblings().setHtml(asc ? "↓" : "↑");
         q("#domains tbody").getChildren().sort(function(a, b) {
@@ -157,7 +160,7 @@ qx.Class.define("domains.Application",
       q("#rating-cloud").rating(2, "☁", 10);
       q("#rating-heart").rating(3, "❤").getChildren().addClass("qx-rating-heart");
 
-      // slider
+      // // slider
       q("#slider").setStyle("display", "block");
       q("#slider").slider(q("#knob"), [0,1,2,3,4,5,6,7,8,9], 30).on("changeValue", function(e) {
         q("#knob").setHtml(e + "");
