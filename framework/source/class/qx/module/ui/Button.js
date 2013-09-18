@@ -54,10 +54,10 @@ qx.Bootstrap.define("qx.module.ui.Button", {
 
 
     setMenu : function(menu) {
-      this.on("click", function(e) {
+      this.on("pointerdown", function(e) {
         menu.placeTo(this, "bottom-left");
         menu.show();
-        q(document).once("click", function() {
+        q(document.documentElement).once("pointerdown", function() {
           menu.hide();
         });
         e.stopPropagation();

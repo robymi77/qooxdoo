@@ -13,7 +13,7 @@ qx.Bootstrap.define("qx.module.ui.Rating", {
 
       rating.getChildren("span")
         .addClasses(["qx-rating", "qx-rating-off"])
-        .on("click", this.__onClick, this);
+        .on("pointerdown", this.__onPointerDown, this);
     }.bind(this));
 
   },
@@ -55,7 +55,7 @@ qx.Bootstrap.define("qx.module.ui.Rating", {
     },
 
 
-    __onClick : function(e) {
+    __onPointerDown : function(e) {
       var parents = q(e.target).getParents();
       this.setValue(parents.getChildren().indexOf(e.target) + 1);
     }

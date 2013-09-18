@@ -88,8 +88,8 @@ qx.Class.define("domains.Application",
 
       // Menus
       var menu = q("#menu").addClass("qx-menu").appendTo(root).hide();
-      menu.getChildren().on("pointerup", function() {
-        console.log("Menu pointerup on", this.getHtml());
+      menu.getChildren().on("pointerdown", function() {
+        console.log("Menu pointerdown on", this.getHtml());
       });
 
       // toolbar
@@ -102,10 +102,6 @@ qx.Class.define("domains.Application",
       toolbar.getChildren().on("pointerup", function() {
         console.log("pointerup on", this.getLabel());
       });
-      toolbar.getChildren().on("click", function() {
-        console.log("click on", this.getLabel());
-      });
-
 
       // disabled
       var disabledCollection = q("#toolbar").find("[disabled]");

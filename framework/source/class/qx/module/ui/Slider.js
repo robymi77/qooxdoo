@@ -9,10 +9,6 @@ qx.Bootstrap.define("qx.module.ui.Slider",
   construct : function(selector, context) {
     this.base(arguments, selector, context)
 
-    if (qxWeb.env.get("event.mspointer")) {
-      knobElement.style["-ms-touch-action"] = "pan-x";
-    }
-
     var trs = qxWeb.env.get("css.transform");
     this.__canTransform = (trs !== null && typeof trs === "object");
     this.__canTransform3d = this.__canTransform ? trs["3d"] : false;
@@ -130,7 +126,11 @@ qx.Bootstrap.define("qx.module.ui.Slider",
     _setupElements : function(sliderElement, knobElement) {
       this.__knobElement = knobElement;
 
-      this.__documentElement = this.__knobElement.getAncestors().find("html");
+      if (qxWeb.env.get("event.mspointer")) {
+        knobElement.style["-ms-touch-action"] = "pan-x";
+      }
+
+      this.__documentElement = qxWeb(document.documentElement); // this.__knobElement.getAncestors().find("html");
 
       this.__leftOffset = parseInt(this.__knobElement.getStyle("left")) || 0;
 
@@ -224,15 +224,15 @@ qx.Bootstrap.define("qx.module.ui.Slider",
      */
     __addListeners : function()
     {
-      this.on("click", this._onClick, this);
+      this.on("pointerup", this._onClick, this);
 
 
       // TODO create a device-independent event processing
       // this.__knobElement.on(q.DeviceInfo.EVENT.start, this._onMouseDown, this);
       // this.__documentElement.on(q.DeviceInfo.EVENT.end, this._onMouseUp, this);
 
-      this.__knobElement.on("mousedown", this._onMouseDown, this);
-      this.__documentElement.on("mouseup", this._onMouseUp, this);
+      this.__knobElement.on("pointerdown", this._onMouseDown, this);
+      this.__documentElement.on("pointerup", this._onMouseUp, this);
 
       qxWeb(window).on("resize", this._onWindowResize, this);
     },
@@ -277,7 +277,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
     _onClick : function(e)
     {
 
-      var clickPosition =  e.getDocumentLeft ? e.getDocumentLeft() : e.changedTouches[0].pageX;
+      var clickPosition = e.getDocumentLeft();
       this.setValue(this.__getCurrentValue(clickPosition));
     },
 
@@ -296,12 +296,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
       }
 
       this.__dragMode = true;
-
-      // TODO create a device-independent event processing
-      // this.__documentElement.on(q.DeviceInfo.EVENT.move, this._onMouseMove, this);
-
-      this.__documentElement.on("mousemove", this._onMouseMove, this);
-
+      this.__documentElement.on("pointermove", this._onMouseMove, this);
       this.__documentElement.setStyle("cursor", "pointer");
 
       e.stopPropagation();
@@ -319,7 +314,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
       // TODO create a device-independent event processing
       // if (e.type === q.DeviceInfo.EVENT.end)
 
-      if (e.type === "mouseup")
+      if (e.type === "pointerup")
       {
         if (this.__dragMode === true)
         {
@@ -331,11 +326,11 @@ qx.Bootstrap.define("qx.module.ui.Slider",
           // TODO create a device-independent event processing
           // this.__documentElement.off(q.DeviceInfo.EVENT.move, this._onMouseMove, this);
 
-          this.__documentElement.off("mousemove", this._onMouseMove, this);
+          this.__documentElement.off("pointermove", this._onMouseMove, this);
           this.__documentElement.setStyle("cursor", null);
         }
 
-        e.stopPropagation();
+        // e.stopPropagation();
       }
     },
 
@@ -351,11 +346,8 @@ qx.Bootstrap.define("qx.module.ui.Slider",
 
       if (this.__dragMode)
       {
-        if(!e.touches){
-          e.touches = [e];
-        }
-        var dragPosition = e.getDocumentLeft ? e.getDocumentLeft() : e.touches[0].pageX;
-
+        var dragPosition = e.getDocumentLeft();
+        console.log("dragPosition", dragPosition);
         if (dragPosition >= this.__dragMin && dragPosition <= this.__dragMax)
         {
           this.setValue(this.__getCurrentValue(dragPosition));
@@ -369,7 +361,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
         }
       }
       // Stop event
-      e.stopPropagation();
+      // e.stopPropagation();
     },
 
     /**
@@ -457,14 +449,14 @@ qx.Bootstrap.define("qx.module.ui.Slider",
 
   destruct : function()
   {
-    this.off("click", this._onClick, this);
+    this.off("pointerdown", this._onClick, this);
 
     // TODO create a device-independent event processing
     // this.__knobElement.off(q.DeviceInfo.EVENT.start, this._onMouseDown, this);
     // this.__documentElement.off(q.DeviceInfo.EVENT.end, this._onMouseUp, this);
 
-    this.__knobElement.off("mousedown", this._onMouseDown, this);
-    this.__documentElement.off("mouseup", this._onMouseUp, this);
+    this.__knobElement.off("pointerdown", this._onMouseDown, this);
+    this.__documentElement.off("pointerup", this._onMouseUp, this);
 
     qxWeb(window).off("resize", this._onWindowResize, this);
 
