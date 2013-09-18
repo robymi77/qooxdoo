@@ -330,7 +330,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
           this.__documentElement.setStyle("cursor", null);
         }
 
-        // e.stopPropagation();
+        e.stopPropagation();
       }
     },
 
@@ -347,7 +347,6 @@ qx.Bootstrap.define("qx.module.ui.Slider",
       if (this.__dragMode)
       {
         var dragPosition = e.getDocumentLeft();
-        console.log("dragPosition", dragPosition);
         if (dragPosition >= this.__dragMin && dragPosition <= this.__dragMax)
         {
           this.setValue(this.__getCurrentValue(dragPosition));
@@ -361,7 +360,7 @@ qx.Bootstrap.define("qx.module.ui.Slider",
         }
       }
       // Stop event
-      // e.stopPropagation();
+      e.stopPropagation();
     },
 
     /**

@@ -53,7 +53,12 @@ qx.Class.define("domains.Application",
       inlineIsle.add(toolbar, {left: 0, right: 0});
 
 
+      var menu = new qx.ui.menu.Menu();
+      menu.add(new qx.ui.menu.Button("abcabcabc"));
+      menu.add(new qx.ui.menu.Button("defdef"));
+
       var newButton = new qx.ui.toolbar.MenuButton("Neu");
+      newButton.setMenu(menu);
       toolbar.add(newButton);
 
       var typeButton = new qx.ui.toolbar.MenuButton("Domain-Typ");
