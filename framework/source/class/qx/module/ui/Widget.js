@@ -65,14 +65,6 @@ qx.Bootstrap.define("qx.module.ui.Widget", {
 
 
 
-
-
-    // ////////////
-    // TODO cleanup!!!
-    // ////////////
-    activate : function() {},
-
-
     setSelectable : function(value) {
       if (!this[0]) {
         return;
